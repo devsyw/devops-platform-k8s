@@ -5,6 +5,9 @@ metadata:
   namespace: devops
   labels:
     app: devops-frontend
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: frontend=ghcr.io/devsyw/devops-platform-frontend
+    argocd-image-updater.argoproj.io/frontend.update-strategy: latest
 spec:
   replicas: 1
   selector:
@@ -21,9 +24,11 @@ spec:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
           effect: NoSchedule
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: frontend
-          image: 192.168.2.2:30080/devops/frontend:latest
+          image: ghcr.io/devsyw/devops-platform-frontend:latest
           ports:
             - containerPort: 80
           resources:
@@ -55,4 +60,3 @@ spec:
     - port: 80
       targetPort: 80
       nodePort: 30000
-      protocol: TCP
