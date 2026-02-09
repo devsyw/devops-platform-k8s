@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: devops-platform
+  namespace: devops
+spec:
+  project: default
+  source:
+    # ⬇️ 실제 GitHub repo URL로 변경
+    repoURL: https://github.com/<YOUR_ORG>/devops-platform.git
+    targetRevision: main
+    path: k8s/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: devops
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
