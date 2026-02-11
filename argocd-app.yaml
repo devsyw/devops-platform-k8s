@@ -3,22 +3,13 @@ kind: Application
 metadata:
   name: devops-platform
   namespace: devops
-  annotations:
-    # ArgoCD Image Updater 설정
-    argocd-image-updater.argoproj.io/image-list: >-
-      backend=ghcr.io/devsyw/devops-platform-backend:latest,
-      frontend=ghcr.io/devsyw/devops-platform-frontend:latest
-    argocd-image-updater.argoproj.io/backend.update-strategy: digest
-    argocd-image-updater.argoproj.io/frontend.update-strategy: digest
-    argocd-image-updater.argoproj.io/backend.pull-secret: pullsecret:devops/ghcr-secret
-    argocd-image-updater.argoproj.io/frontend.pull-secret: pullsecret:devops/ghcr-secret
-    argocd-image-updater.argoproj.io/write-back-method: argocd
 spec:
   project: default
   source:
-    repoURL: https://github.com/devsyw/devops-platform-k8s.git
+    # ⬇️ 실제 GitHub repo URL로 변경
+    repoURL: https://github.com/<YOUR_ORG>/devops-platform.git
     targetRevision: main
-    path: manifests
+    path: k8s/manifests
   destination:
     server: https://kubernetes.default.svc
     namespace: devops
