@@ -1,0 +1,139 @@
+---
+# act_runner - Gitea Actions Runner (Docker-in-Docker)
+# 사전 준비: RUNNER_TOKEN은 Gitea에서 발급 후 교체
+apiVersion: v1
+kind: Secret
+metadata:
+  name: act-runner-secret
+  namespace: devops-toolchain
+type: Opaque
+stringData:
+  GITEA_INSTANCE_URL: http://gitea-http.devops-toolchain.svc.cluster.local:3000
+  GITEA_RUNNER_REGISTRATION_TOKEN: "CHANGE_ME"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: act-runner-config
+  namespace: devops-toolchain
+data:
+  config.yaml: |
+    log:
+      level: info
+    runner:
+      capacity: 2
+      timeout: 3600
+      labels:
+        - "ubuntu-latest:docker://catthehacker/ubuntu:act-latest"
+        - "ubuntu-22.04:docker://catthehacker/ubuntu:act-22.04"
+    container:
+      network: "bridge"
+      privileged: true
+      options: >-
+        --dns 10.96.0.10
+        --add-host harbor.devops.cicd.test:10.10.11.143
+        --add-host gitea.devops.cicd.test:10.10.11.143
+      valid_volumes:
+        - "/certs/client"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: act-runner
+  namespace: devops-toolchain
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: act-runner
+  template:
+    metadata:
+      labels:
+        app: act-runner
+    spec:
+      hostAliases:
+        - ip: "10.10.11.143"
+          hostnames:
+            - harbor.devops.cicd.test
+            - gitea.devops.cicd.test
+      containers:
+        # Docker-in-Docker sidecar
+        - name: dind
+          image: docker:27-dind
+          securityContext:
+            privileged: true
+          args:
+            - --insecure-registry=harbor.devops.cicd.test
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: /certs
+          volumeMounts:
+            - name: docker-certs
+              mountPath: /certs
+            - name: docker-data
+              mountPath: /var/lib/docker
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+        # act_runner
+        - name: runner
+          image: gitea/act_runner:latest
+          command: ["sh", "-c"]
+          args:
+            - |
+              # DinD 준비 대기
+              while ! docker info >/dev/null 2>&1; do
+                echo "Waiting for Docker..."
+                sleep 2
+              done
+              echo "Docker ready!"
+
+              # 등록 (최초 1회만 실행됨, .runner 파일 존재하면 스킵)
+              if [ ! -f /data/.runner ]; then
+                act_runner register --no-interactive \
+                  --instance "$GITEA_INSTANCE_URL" \
+                  --token "$GITEA_RUNNER_REGISTRATION_TOKEN" \
+                  --name "k8s-runner" \
+                  --labels "ubuntu-latest:docker://catthehacker/ubuntu:act-latest,ubuntu-22.04:docker://catthehacker/ubuntu:act-22.04"
+              fi
+
+              act_runner daemon --config /config/config.yaml
+          env:
+            - name: DOCKER_HOST
+              value: tcp://localhost:2376
+            - name: DOCKER_TLS_VERIFY
+              value: "1"
+            - name: DOCKER_CERT_PATH
+              value: /certs/client
+          envFrom:
+            - secretRef:
+                name: act-runner-secret
+          volumeMounts:
+            - name: docker-certs
+              mountPath: /certs
+              readOnly: true
+            - name: runner-data
+              mountPath: /data
+            - name: config
+              mountPath: /config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: docker-certs
+          emptyDir: {}
+        - name: docker-data
+          emptyDir: {}
+        - name: runner-data
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: act-runner-config
