@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: devops-tools
+
+resources:
+  - 01-postgresql.yaml
+  - 02-backend.yaml
+  - 03-frontend.yaml
+  - 04-ingress.yaml
+
+images:
+  - name: harbor.devops.cicd.test/devops-platform/backend
+    newTag: "latest"
+  - name: harbor.devops.cicd.test/devops-platform/frontend
+    newTag: "latest"
