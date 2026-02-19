@@ -11,6 +11,6 @@ resources:
 
 images:
   - name: harbor.devops.cicd.test/devops-platform/backend
-    newTag: "latest"
+    newTag: latest   #backend
   - name: harbor.devops.cicd.test/devops-platform/frontend
-    newTag: "latest"
+    newTag: latest   #frontend
